@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRT WebGL Effects Simulation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@600;800&family=VT323&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background-color: #08080c;
+            color: #d1d5db;
+            font-family: 'Share Tech Mono', monospace;
+            overflow-x: hidden;
+        }
+        .monitor-bezel {
+            background: linear-gradient(145deg, #1f222e, #0d0e14);
+            box-shadow: inset 0 0 15px rgba(255,255,255,0.05), 0 20px 50px rgba(0,0,0,0.9);
+            border: 1px solid #2a2e3d;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-3 sm:p-6 select-none">
+
+    <!-- ヘッダー -->
+    <header class="w-full max-w-4xl mb-3 flex flex-wrap justify-between items-center gap-2 px-2">
+        <div>
+            <h1 class="text-xl sm:text-2xl font-extrabold text-emerald-400 tracking-wider flex items-center gap-2">
+                <span class="inline-block w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></span>
+                FULL CRT SHADER SIMULATION
+            </h1>
+            <p class="text-xs text-gray-400">2D Render Canvas + WebGL Fragment Shader Post-Processing</p>
+        </div>
+        <div class="text-xs text-emerald-400 border border-emerald-900/60 bg-emerald-950/30 px-3 py-1.5 rounded-md font-mono">
+            STATUS: <span id="fpsCounter" class="font-bold">60 FPS</span>
+        </div>
+    </header>
+
+    <!-- メインモニター領域 -->
+    <main class="w-full max-w-4xl aspect-[4/3] max-h-[60vh] monitor-bezel rounded-2xl p-3 sm:p-5 relative flex items-center justify-center">
+        <!-- WebGLによる視覚効果描画用Canvas -->
+        <canvas id="webglCanvas" class="w-full h-full block rounded-lg bg-black cursor-pointer"></canvas>
+    </main>
+
+    <!-- コントロールパネル -->
+    <section class="w-full max-w-4xl mt-4 bg-gray-900/80 backdrop-blur-md border border-gray-800 p-4 rounded-xl shadow-2xl">
+        <h2 class="text-sm font-bold text-gray-300 mb-3 flex items-center gap-2">
+            ⚙ CRT EFFECT PARAMETERS
+        </h2>
+        
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+            <!-- 湾曲スライダー -->
+            <div class="bg-gray-950/60 p-3 rounded-lg border border-gray-800">
+                <div class="flex justify-between mb-1">
+                    <label for="sliderCurvature" class="text-emerald-400 font-semibold">画面の湾曲 (Curvature)</label>
+                    <span id="valCurvature" class="text-gray-400">0.35</span>
+                </div>
+                <input type="range" id="sliderCurvature" min="0.0" max="0.8" step="0.01" value="0.35" class="w-full accent-emerald-500 cursor-pointer">
+            </div>
+
+            <!-- 色収差スライダー -->
+            <div class="bg-gray-950/60 p-3 rounded-lg border border-gray-800">
+                <div class="flex justify-between mb-1">
+                    <label for="sliderRgbShift" class="text-cyan-400 font-semibold">色収差 (RGB Shift)</label>
+                    <span id="valRgbShift" class="text-gray-400">0.30</span>
+                </div>
+                <input type="range" id="sliderRgbShift" min="0.0" max="1.0" step="0.01" value="0.30" class="w-full accent-cyan-500 cursor-pointer">
+            </div>
+
+            <!-- 走査線スライダー -->
+            <div class="bg-gray-950/60 p-3 rounded-lg border border-gray-800">
+                <div class="flex justify-between mb-1">
+                    <label for="sliderScanline" class="text-rose-400 font-semibold">走査線 (Scanlines)</label>
+                    <span id="valScanline" class="text-gray-400">0.60</span>
+                </div>
+                <input type="range" id="sliderScanline" min="0.0" max="1.0" step="0.01" value="0.60" class="w-full accent-rose-500 cursor-pointer">
+            </div>
+        </div>
+
+        <!-- プリセットボタン -->
+        <div class="flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-800/80">
+            <span class="text-xs text-gray-500 flex items-center mr-1">PRESETS:</span>
+            <button id="btnPresetDefault" class="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-xs text-gray-200 rounded border border-gray-700 transition">標準 CRT</button>
+            <button id="btnPresetRetro" class="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-xs text-emerald-300 rounded border border-emerald-800/50 transition">強湾曲 80s</button>
+            <button id="btnPresetFlat" class="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-xs text-cyan-300 rounded border border-cyan-800/50 transition">フラット液晶風</button>
+        </div>
+    </section>
+
+    <!-- 非表示の 2D Offscreen Canvas (ソース描画用) -->
+    <canvas id="offscreenCanvas" class="hidden"></canvas>
+
+    <script>
+        const webglCanvas = document.getElementById('webglCanvas');
+        const offscreenCanvas = document.getElementById('offscreenCanvas');
+        
+        const gl = webglCanvas.getContext('webgl') || webglCanvas.getContext('experimental-webgl');
+        const ctx2d = offscreenCanvas.getContext('2d');
+
+        // パラメータGUI要素
+        const sliderCurvature = document.getElementById('sliderCurvature');
+        const sliderRgbShift = document.getElementById('sliderRgbShift');
+        const sliderScanline = document.getElementById('sliderScanline');
+        const valCurvature = document.getElementById('valCurvature');
+        const valRgbShift = document.getElementById('valRgbShift');
+        const valScanline = document.getElementById('valScanline');
+
+        // エフェクト調整用ステート
+        const params = {
+            curvature: parseFloat(sliderCurvature.value),
+            rgbShift: parseFloat(sliderRgbShift.value),
+            scanline: parseFloat(sliderScanline.value)
+        };
+
+        // スライダーイベント listener
+        sliderCurvature.addEventListener('input', (e) => {
+            params.curvature = parseFloat(e.target.value);
+            valCurvature.textContent = params.curvature.toFixed(2);
+        });
+        sliderRgbShift.addEventListener('input', (e) => {
+            params.rgbShift = parseFloat(e.target.value);
+            valRgbShift.textContent = params.rgbShift.toFixed(2);
+        });
+        sliderScanline.addEventListener('input', (e) => {
+            params.scanline = parseFloat(e.target.value);
+            valScanline.textContent = params.scanline.toFixed(2);
+        });
+
+        // プリセットボタン
+        document.getElementById('btnPresetDefault').addEventListener('click', () => setParams(0.35, 0.30, 0.60));
+        document.getElementById('btnPresetRetro').addEventListener('click', () => setParams(0.65, 0.70, 0.85));
+        document.getElementById('btnPresetFlat').addEventListener('click', () => setParams(0.00, 0.05, 0.20));
+
+        function setParams(c, r, s) {
+            params.curvature = c; sliderCurvature.value = c; valCurvature.textContent = c.toFixed(2);
+            params.rgbShift = r; sliderRgbShift.value = r; valRgbShift.textContent = r.toFixed(2);
+            params.scanline = s; sliderScanline.value = s; valScanline.textContent = s.toFixed(2);
+        }
+
+        // --- WebGL シェーダー定義 ---
+        const vsSource = `
+            attribute vec2 a_position;
+            attribute vec2 a_texCoord;
+            varying vec2 v_texCoord;
+            void main() {
+                gl_Position = vec4(a_position, 0.0, 1.0);
+                v_texCoord = a_texCoord;
+            }
+        `;
+
+        const fsSource = `
+            precision mediump float;
+            uniform sampler2D u_texture;
+            uniform vec2 u_resolution;
+            uniform float u_time;
+            uniform float u_curvature;
+            uniform float u_rgbShift;
+            uniform float u_scanline;
+            varying vec2 v_texCoord;
+
+            // 1. 画面の湾曲（樽型歪み）計算
+            vec2 curveUV(vec2 uv) {
+                if (u_curvature <= 0.001) return uv;
+                uv = uv * 2.0 - 1.0; // [-1.0, 1.0] に正規化
+                vec2 offset = abs(uv.yx) / vec2(6.0 / u_curvature, 4.0 / u_curvature);
+                uv = uv + uv * offset * offset;
+                uv = uv * 0.5 + 0.5; // [0.0, 1.0] に戻す
+                return uv;
+            }
+
+            void main() {
+                vec2 uv = curveUV(v_texCoord);
+
+                // 画面外領域は黒色のフレーム枠にする
+                if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
+                    gl_FragColor = vec4(0.01, 0.01, 0.02, 1.0);
+                    return;
+                }
+
+                // 2. 色収差 (RGB Shift) - 左右にRとBのチャンネルをずらしてサンプリング
+                float shift = u_rgbShift * 0.008;
+                float r = texture2D(u_texture, uv - vec2(shift, 0.0)).r;
+                float g = texture2D(u_texture, uv).g;
+                float b = texture2D(u_texture, uv + vec2(shift, 0.0)).b;
+                vec3 color = vec3(r, g, b);
+
+                // 3. 水平走査線 (Scanline) の生成
+                float scan = sin(uv.y * u_resolution.y * 1.3) * (0.3 * u_scanline) + (1.0 - 0.3 * u_scanline);
+                color *= scan;
+
+                // 4. ゆっくり下移動するビーム帯 (Scanline sweep / Roll)
+                float roll = sin(uv.y * 10.0 - u_time * 3.5) * 0.03 + 0.97;
+                color *= roll;
+
+                // 5. 周辺減光（Vignette）
+                float vign = uv.x * uv.y * (1.0 - uv.x) * (1.0 - uv.y);
+                vign = clamp(pow(16.0 * vign, 0.3), 0.0, 1.0);
+                color *= vign;
+
+                // 6. わずかなCRT特有のフリッカー（ちらつき）
+                float flicker = 1.0 - 0.015 * sin(u_time * 45.0);
+                color *= flicker;
+
+                gl_FragColor = vec4(color, 1.0);
+            }
+        `;
+
+        // ヘルパー：シェーダーコンパイル
+        function createShader(gl, type, source) {
+            const shader = gl.createShader(type);
+            gl.shaderSource(shader, source);
+            gl.compileShader(shader);
+            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                console.error('Shader compilation error:', gl.getShaderInfoLog(shader));
+                gl.deleteShader(shader);
+                return null;
+            }
+            return shader;
+        }
+
+        const vertexShader = createShader(gl, gl.VERTEX_SHADER, vsSource);
+        const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fsSource);
+        const program = gl.createProgram();
+        gl.attachShader(program, vertexShader);
+        gl.attachShader(program, fragmentShader);
+        gl.linkProgram(program);
+        gl.useProgram(program);
+
+        // 頂点バッファ設定 (四角形ポリゴン)
+        const positionBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+            -1, -1,  1, -1, -1,  1,
+            -1,  1,  1, -1,  1,  1,
+        ]), gl.STATIC_DRAW);
+
+        const aPosition = gl.getAttribLocation(program, 'a_position');
+        gl.enableVertexAttribArray(aPosition);
+        gl.vertexAttribPointer(aPosition, 2, gl.FLOAT, false, 0, 0);
+
+        // テクスチャ座標バッファ
+        const texCoordBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+            0, 1,  1, 1,  0, 0,
+            0, 0,  1, 1,  1, 0,
+        ]), gl.STATIC_DRAW);
+
+        const aTexCoord = gl.getAttribLocation(program, 'a_texCoord');
+        gl.enableVertexAttribArray(aTexCoord);
+        gl.vertexAttribPointer(aTexCoord, 2, gl.FLOAT, false, 0, 0);
+
+        // WebGL テクスチャ生成
+        const texture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+        // Uniform のロケーション取得
+        const uResolution = gl.getUniformLocation(program, 'u_resolution');
+        const uTime = gl.getUniformLocation(program, 'u_time');
+        const uCurvature = gl.getUniformLocation(program, 'u_curvature');
+        const uRgbShift = gl.getUniformLocation(program, 'u_rgbShift');
+        const uScanline = gl.getUniformLocation(program, 'u_scanline');
+
+        // 解像度サイズ調整
+        function resizeCanvases() {
+            const rect = webglCanvas.getBoundingClientRect();
+            const dpr = Math.min(window.devicePixelRatio || 1, 2); // パフォーマンス考慮で最大DPR:2
+            const width = Math.floor(rect.width * dpr);
+            const height = Math.floor(rect.height * dpr);
+
+            if (webglCanvas.width !== width || webglCanvas.height !== height) {
+                webglCanvas.width = width;
+                webglCanvas.height = height;
+                offscreenCanvas.width = width;
+                offscreenCanvas.height = height;
+                gl.viewport(0, 0, width, height);
+            }
+        }
+        window.addEventListener('resize', resizeCanvases);
+        resizeCanvases();
+
+        /**
+         * 2D Offscreen Canvas に各要素（文字・グラデーション・発光）を描画する
+         */
+        function drawOffscreenScene(time) {
+            const w = offscreenCanvas.width;
+            const h = offscreenCanvas.height;
+
+            // 背景クリア
+            ctx2d.fillStyle = '#05060a';
+            ctx2d.fillRect(0, 0, w, h);
+
+            const cardW = Math.min(w * 0.8, 500);
+            const cardH = Math.min(h * 0.22, 110);
+            const centerX = (w - cardW) / 2;
+
+            // 角丸四角描画ヘルパー
+            function drawBox(x, y, radius) {
+                ctx2d.beginPath();
+                ctx2d.roundRect(x, y, cardW, cardH, radius);
+            }
+
+            // 1. 旧式緑色ターミナル (HelloWorld)
+            const y1 = h * 0.12;
+            ctx2d.save();
+            ctx2d.shadowColor = 'rgba(0, 255, 102, 0.9)';
+            ctx2d.shadowBlur = 15;
+            ctx2d.strokeStyle = '#00ff66';
+            ctx2d.lineWidth = 3;
+            drawBox(centerX, y1, 10);
+            ctx2d.stroke();
+            ctx2d.fillStyle = 'rgba(0, 255, 102, 0.05)';
+            ctx2d.fill();
+
+            const flicker = Math.sin(time * 0.015) * 0.15 + 0.85;
+            ctx2d.globalAlpha = flicker;
+            ctx2d.font = `bold ${Math.floor(cardH * 0.38)}px "VT323", monospace`;
+            ctx2d.fillStyle = '#00ff66';
+            ctx2d.textAlign = 'center';
+            ctx2d.textBaseline = 'middle';
+            ctx2d.fillText('> HelloWorld_', centerX + cardW / 2, y1 + cardH / 2);
+            ctx2d.restore();
+
+            // 2. 赤色 DANGER パルス発光
+            const y2 = h * 0.39;
+            const pulse = (Math.sin(time * 0.005) + 1) / 2;
+            ctx2d.save();
+            ctx2d.shadowColor = `rgba(255, 30, 60, ${0.6 + pulse * 0.4})`;
+            ctx2d.shadowBlur = 10 + pulse * 20;
+            ctx2d.strokeStyle = `rgba(255, 60, 80, ${0.7 + pulse * 0.3})`;
+            ctx2d.lineWidth = 3.5;
+            drawBox(centerX, y2, 12);
+            ctx2d.stroke();
+            ctx2d.fillStyle = `rgba(255, 0, 50, ${0.08 + pulse * 0.08})`;
+            ctx2d.fill();
+
+            ctx2d.font = `800 ${Math.floor(cardH * 0.32)}px "Orbitron", sans-serif`;
+            ctx2d.fillStyle = '#ff3355';
+            ctx2d.textAlign = 'center';
+            ctx2d.textBaseline = 'middle';
+            ctx2d.fillText('⚠ DANGER ⚠', centerX + cardW / 2, y2 + cardH / 2);
+            ctx2d.restore();
+
+            // 3. ゲーミング PC (RGBレインボー)
+            const y3 = h * 0.66;
+            const hue = (time * 0.1) % 360;
+            ctx2d.save();
+            const grad = ctx2d.createLinearGradient(centerX, y3, centerX + cardW, y3 + cardH);
+            grad.addColorStop(0.0, `hsl(${hue}, 100%, 60%)`);
+            grad.addColorStop(0.5, `hsl(${(hue + 120) % 360}, 100%, 60%)`);
+            grad.addColorStop(1.0, `hsl(${(hue + 240) % 360}, 100%, 60%)`);
+
+            ctx2d.shadowColor = `hsl(${hue}, 100%, 50%)`;
+            ctx2d.shadowBlur = 18;
+            ctx2d.strokeStyle = grad;
+            ctx2d.lineWidth = 4;
+            drawBox(centerX, y3, 14);
+            ctx2d.stroke();
+            ctx2d.fillStyle = 'rgba(15, 15, 25, 0.6)';
+            ctx2d.fill();
+
+            ctx2d.font = `800 ${Math.floor(cardH * 0.30)}px "Orbitron", sans-serif`;
+            ctx2d.fillStyle = grad;
+            ctx2d.textAlign = 'center';
+            ctx2d.textBaseline = 'middle';
+            ctx2d.fillText('🎮 GAMING PC 🎮', centerX + cardW / 2, y3 + cardH / 2);
+            ctx2d.restore();
+        }
+
+        // FPS カウンター変数
+        let lastTime = performance.now();
+        let frameCount = 0;
+        const fpsDisplay = document.getElementById('fpsCounter');
+
+        // メインアニメーションループ
+        function render(now) {
+            resizeCanvases();
+
+            // 1. Offscreen 2D Canvasに元のグラフィックを描画
+            drawOffscreenScene(now);
+
+            // 2. Offscreen Canvasの描画結果をWebGLテクスチャへアップデート
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, offscreenCanvas);
+
+            // 3. WebGL uniform パラメータの更新
+            gl.uniform2f(uResolution, webglCanvas.width, webglCanvas.height);
+            gl.uniform1f(uTime, now * 0.001);
+            gl.uniform1f(uCurvature, params.curvature);
+            gl.uniform1f(uRgbShift, params.rgbShift);
+            gl.uniform1f(uScanline, params.scanline);
+
+            // 4. Fragment Shader でポストプロセス描画実行
+            gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+            // FPS 計測
+            frameCount++;
+            if (now - lastTime >= 500) {
+                const fps = Math.round((frameCount * 1000) / (now - lastTime));
+                fpsDisplay.textContent = `${fps} FPS`;
+                frameCount = 0;
+                lastTime = now;
+            }
+
+            requestAnimationFrame(render);
+        }
+
+        // 描画ルーチンスタート
+        requestAnimationFrame(render);
+    </script>
+</body>
+</html>

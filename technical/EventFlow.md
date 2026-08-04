@@ -19,6 +19,9 @@ UI_UPDATE
  ↓
 WIN_CHECK
 ```
+
+状態定数
+
 ```
 const GAME_PHASE = {
     BOOT: "BOOT",

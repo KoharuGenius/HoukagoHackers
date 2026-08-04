@@ -1,41 +1,19 @@
-ゲーム開始
-
-↓
-
-初期化
-
-↓
-
-4枚配る
-
-↓
-
-Player選択
-
-↓
-
-CPU選択
-
-↓
-
-カード公開
-
-↓
-
-判定
-
-↓
-
-LP更新
-
-↓
-
-Node更新
-
-↓
-
-画面更新
-
-↓
-
-勝利判定
+BOOT
+ ↓
+DEAL
+ ↓
+PLAYER_SELECT
+ ↓
+CPU_SELECT
+ ↓
+REVEAL
+ ↓
+JUDGEMENT
+ ↓
+LP_UPDATE
+ ↓
+NODE_UPDATE
+ ↓
+UI_UPDATE
+ ↓
+WIN_CHECK

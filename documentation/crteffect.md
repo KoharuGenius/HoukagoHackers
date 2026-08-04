@@ -1,6 +1,8 @@
 CRT Glow Canvas アニメーションの技術解説このドキュメントでは、HTML5 Canvas（2D Context）と JavaScript を利用して、レトロなCRT（ブラウン管）モニター風の発光エフェクトやアニメーションを実装する手法を解説します。
 
-## 1. 蛍光・発光表現（Glow Effect）の原理Canvas でネオンや蛍光管のような「鈍く光る」表現を実現するため、ドロップシャドウ機能（Shadow API） を応用しています。
+## 1. 蛍光・発光表現（Glow Effect）の原理
+
+Canvas でネオンや蛍光管のような「鈍く光る」表現を実現するため、ドロップシャドウ機能（Shadow API） を応用しています。
 ```
 ctx.save();    
 ctx.shadowColor = 'rgba(0, 255, 102, 0.8)'; // 光の色    

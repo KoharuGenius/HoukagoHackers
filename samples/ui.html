@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>NEXUS FRONTIER Terminal</title>
+
+<style>
+
+*{
+    box-sizing:border-box;
+}
+
+body{
+    background:#111;
+    display:flex;
+    justify-content:center;
+    padding:20px;
+    font-family:
+    "Courier New",
+    monospace;
+}
+
+
+/* ===== コンソール本体 ===== */
+
+.console{
+
+    width:600px;
+    max-width:100%;
+
+    background:#020402;
+    color:#b8ffb8;
+
+    border:3px solid #395239;
+
+    padding:12px;
+
+    box-shadow:
+    0 0 20px rgba(80,255,120,0.2),
+    inset 0 0 30px rgba(0,255,100,0.08);
+
+    position:relative;
+
+}
+
+
+/* CRT走査線 */
+
+.console::after{
+
+    content:"";
+
+    position:absolute;
+    inset:0;
+
+    background:
+    repeating-linear-gradient(
+        0deg,
+        rgba(255,255,255,0.03),
+        rgba(255,255,255,0.03) 1px,
+        transparent 2px,
+        transparent 4px
+    );
+
+    pointer-events:none;
+
+}
+
+
+/* ===== タイトル ===== */
+
+.header{
+
+    border-bottom:1px solid #587858;
+
+    padding-bottom:8px;
+    margin-bottom:10px;
+
+}
+
+.title{
+
+    font-size:22px;
+    letter-spacing:3px;
+
+}
+
+.sub{
+
+    color:#88aa88;
+    font-size:12px;
+
+}
+
+
+
+/* ===== セクション ===== */
+
+
+.section{
+
+    border:1px solid #395239;
+
+    margin-bottom:10px;
+
+    padding:10px;
+
+}
+
+
+.section-title{
+
+    color:#ffffff;
+
+    margin-bottom:8px;
+
+    letter-spacing:2px;
+
+}
+
+
+
+/* ===== ステータス ===== */
+
+
+.status{
+
+    display:flex;
+    justify-content:space-between;
+
+}
+
+
+.score{
+
+    font-size:22px;
+
+    letter-spacing:6px;
+
+}
+
+
+
+/* ===== ネットワーク ===== */
+
+
+.network{
+
+    padding:10px 5px;
+
+}
+
+
+.line{
+
+    display:flex;
+
+    justify-content:center;
+
+    gap:3px;
+
+    overflow:hidden;
+
+}
+
+
+.node{
+
+    width:10px;
+    height:10px;
+
+    border:1px solid #5d8;
+
+}
+
+
+.node.agent{
+
+    background:#fff;
+    box-shadow:0 0 8px white;
+
+}
+
+
+.node.goal{
+
+    border-color:#f66;
+
+}
+
+
+.info{
+
+    margin-top:8px;
+
+    font-size:14px;
+
+}
+
+
+/* ===== カード ===== */
+
+
+.cards{
+
+    display:flex;
+
+    gap:8px;
+
+    flex-wrap:wrap;
+
+}
+
+
+.card{
+
+    width:120px;
+
+    border:1px solid #577;
+
+    padding:8px;
+
+    background:#050805;
+
+}
+
+
+.card strong{
+
+    color:white;
+
+}
+
+
+.cost{
+
+    color:#aaa;
+
+    font-size:12px;
+
+}
+
+
+button{
+
+    background:#111;
+
+    color:#b8ffb8;
+
+    border:1px solid #5b8;
+
+    padding:8px;
+
+    cursor:pointer;
+
+}
+
+
+
+/* ===== ログ ===== */
+
+
+.log{
+
+    height:120px;
+
+    overflow:hidden;
+
+    background:#000;
+
+    padding:8px;
+
+    color:#9ccc9c;
+
+    font-size:13px;
+
+}
+
+
+
+@media(max-width:600px){
+
+    body{
+
+        padding:5px;
+
+    }
+
+
+    .title{
+
+        font-size:18px;
+
+    }
+
+
+    .card{
+
+        width:calc(50% - 5px);
+
+    }
+
+
+    .node{
+
+        width:7px;
+        height:7px;
+
+    }
+
+}
+
+
+
+</style>
+
+</head>
+
+
+<body>
+
+
+<div class="console">
+
+
+<div class="header">
+
+<div class="title">
+NEXUS FRONTIER
+</div>
+
+<div class="sub">
+MAINFRAME INFILTRATION SYSTEM // TERMINAL ver.0.82
+</div>
+
+</div>
+
+
+
+<!-- 総合ステータス -->
+
+<div class="section">
+
+
+<div class="section-title">
+[ STATUS ]
+</div>
+
+
+<div class="status">
+
+
+<div>
+SCORE
+<br>
+
+<div class="score">
+■ □
+</div>
+
+</div>
+
+
+<div>
+SIDE
+<br>
+
+ATTACKER
+</div>
+
+
+</div>
+
+
+</div>
+
+
+
+
+<!-- ネットワーク -->
+
+
+<div class="section">
+
+
+<div class="section-title">
+[ NETWORK FIELD ]
+</div>
+
+
+<div class="network">
+
+
+<div class="line">
+
+
+<!-- 41ノード -->
+
+<script>
+
+for(let i=0;i<41;i++){
+
+document.write(
+'<div class="node '+
+(i==14?'agent ':'')+
+(i==40?'goal ':'')+
+'"></div>'
+);
+
+}
+
+</script>
+
+
+</div>
+
+
+<div class="info">
+
+NODE LENGTH : 41<br>
+
+AGENT POSITION : NODE 14<br>
+
+RESTORE POINT :
+NODE 20 (6 NODE REMAIN)<br>
+
+CORE DISTANCE :
+26 NODE
+
+</div>
+
+
+</div>
+
+
+</div>
+
+
+
+
+<!-- プログラム -->
+
+
+<div class="section">
+
+
+<div class="section-title">
+[ PROGRAM DATABASE ]
+</div>
+
+
+残存プログラム
+
+<br><br>
+
+
+BLITZ-02 : 05<br>
+RUN-04 : 06<br>
+STURMANGRIFF : 04<br>
+FEINT : 03
+
+
+</div>
+
+
+
+<!-- 手札 -->
+
+<div class="section">
+
+
+<div class="section-title">
+[ HAND SELECT ]
+</div>
+
+
+
+<div class="cards">
+
+
+<div class="card">
+
+<strong>
+BLITZ-02
+</strong>
+
+<br>
+
++2 NODE
+
+<br>
+
+<span class="cost">
+LP COST : 1
+</span>
+
+<br><br>
+
+<button>
+EXECUTE
+</button>
+
+
+</div>
+
+
+
+<div class="card">
+
+<strong>
+STURM-08
+</strong>
+
+<br>
+
++8 NODE
+
+<br>
+
+<span class="cost">
+LP COST : 4
+</span>
+
+<br><br>
+
+<button>
+EXECUTE
+</button>
+
+
+</div>
+
+
+</div>
+
+
+</div>
+
+
+
+
+
+<!-- ログ -->
+
+
+<div class="section">
+
+
+<div class="section-title">
+[ SYSTEM LOG ]
+</div>
+
+
+<div class="log">
+
+> SYSTEM READY<br>
+> LINK ESTABLISHED<br>
+> TARGET : UNKNOWN<br>
+> WAITING PROGRAM INPUT...<br>
+> LP RESTORE POINT SET<br>
+
+</div>
+
+
+</div>
+
+
+
+</div>
+
+
+
+</body>
+
+</html>

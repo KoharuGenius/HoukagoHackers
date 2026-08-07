@@ -8,7 +8,6 @@
 |agentNode|現在のエージェント位置|
 |recoveryNode|LP回復Node|
 |playerLP|Player LP|
-|cpuLP|CPU LP|
 |playerScore|Player得点|
 |cpuScore|CPU得点|
 |attackSide|攻撃側|
